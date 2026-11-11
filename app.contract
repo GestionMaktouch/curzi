@@ -188,6 +188,10 @@ component Curzi
     withdrawalText = v
   action setMode(m: string)
     growthMode = m
+  // Grow's result becomes Withdraw's starting balance: plan the saving, then the spending, in one go.
+  action transferToWithdraw
+    startText = formatDecimal(round(growth.final * 100), 2)
+    growthMode = "withdraw"
   action openChart
     nav = push(nav, path("chart"))
   action openTable
@@ -476,6 +480,11 @@ component Curzi
                     row
                       text "In today's money"
                       text whole(growth.realFinal) font-variant-numeric="tabular-nums" color="-exact-secondary-label" testId="real"
+                    button press=transferToWithdraw testId="transfer"
+                      image "symbol:forward"
+                      text `Withdraw from ${whole(growth.final)}`
+                    footer
+                      text "Carries the investment value over as Withdraw's starting balance, so you can plan the spending next."
                 section
                   button press=openChart testId="open-chart"
                     image "symbol:chart"
