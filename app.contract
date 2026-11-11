@@ -10,6 +10,8 @@ routes nav
   tab growth "/growth"
     chart "/growth/chart"
     table "/growth/table"
+    save "/growth/save"
+    compare "/growth/compare"
 
 shape Currency
   code: string
@@ -56,6 +58,27 @@ shape Growth
   realPoints: string
   peak: number
 
+// A saved scenario, with its result worked out again each time it is read.
+shape Scenario
+  id: string
+  name: string
+  mode: string
+  start: number
+  rate: number
+  years: number
+  amount: number
+  frequency: string
+  inflation: number
+  final: number
+  contributions: number
+  profit: number
+  realFinal: number
+  lastsMonths: number
+
+shape Reply
+  ok: bool
+  error: string
+
 // What the typed expression comes to (app.ts evaluates `5×100÷7`).
 shape Eval
   value: number
@@ -72,6 +95,7 @@ fn money(n: number, decimals: bool): string = (not decimals ? formatNumber(round
 // The field's own text while you edit it: exact, ungrouped.
 fn plain(n: number, decimals: bool): string = (not decimals ? `${round(n)}`
   : n >= 1 or n == 0 ? formatDecimal(round(n * 100), 2) : formatDecimal(round(n * 10000), 4))
+fn pad2(n: number): string = n < 10 ? `0${n}` : `${n}`
 fn whole(n: number): string = formatNumber(round(n), "decimal")
 // "23 years 4 months", "7 months", or forever.
 fn lasts(months: number): string = (months < 0 ? "Forever: the balance never runs out"
@@ -113,6 +137,7 @@ component Curzi
   state frequency = "monthly" persist
   state inflationText = "2" persist
   state withdrawalText = "500" persist
+  state scenarioName = ""
   // The row a long press opened the menu on.
   state aimed = ""
   state query = ""
@@ -123,6 +148,12 @@ component Curzi
   resource rates = loadRates() as shape Rates else empty()
   resource evaluated = evaluate(draft) as shape Eval else empty(value=0, ok=true)
   resource growth = projectGrowth(growthMode, numberOf(startText), numberOf(rateText), numberOf(yearsText), numberOf(growthMode == "withdraw" ? withdrawalText : additionText), frequency, numberOf(inflationText)) as shape Growth else empty()
+  resource scenarios = loadScenarios() as shape Scenario[] else empty()
+  mutation scenarioSaved as shape Reply refreshes scenarios then afterSaved
+  mutation scenarioRemoved as shape Reply refreshes scenarios
+  derive growScenarios = scenarios.filter(x => x.mode == "grow")
+  derive withdrawScenarios = scenarios.filter(x => x.mode == "withdraw")
+  derive saveError = match scenarioSaved { case some(r) => r.error, case none => "" }
   derive withdrawing = growthMode == "withdraw"
   derive horizon = growth.years.length - 1
   resource rows = loadRows(codes) with rates.date as shape Row[] else empty()
@@ -192,6 +223,38 @@ component Curzi
   action transferToWithdraw
     startText = formatDecimal(round(growth.final * 100), 2)
     growthMode = "withdraw"
+  action openSave
+    scenarioName = `comparison${pad2(scenarios.length + 1)}`
+    nav = push(nav, path("save"))
+  action editName(v: string)
+    scenarioName = v
+  action saveScenario
+    if scenarioName.trim() != "" and not pending(scenarioSaved)
+      send scenarioSaved = addScenario(scenarioName.trim(), growthMode, numberOf(startText), numberOf(rateText), numberOf(yearsText), numberOf(withdrawing ? withdrawalText : additionText), frequency, numberOf(inflationText))
+  action afterSaved
+    if saveError == "" and top(nav).name == "save"
+      nav = back(nav)
+  action openCompare
+    nav = push(nav, path("compare"))
+  action removeScenario(id: string)
+    send scenarioRemoved = deleteScenario(id)
+  // A tapped scenario fills the form again.
+  action useScenario(id: string)
+    match first(scenarios.filter(x => x.id == id))
+      case some(x)
+        growthMode = x.mode
+        startText = formatDecimal(round(x.start * 100), 2)
+        rateText = `${x.rate}`
+        yearsText = `${x.years}`
+        frequency = x.frequency
+        inflationText = `${x.inflation}`
+        if x.mode == "withdraw"
+          withdrawalText = formatDecimal(round(x.amount * 100), 2)
+        else
+          additionText = formatDecimal(round(x.amount * 100), 2)
+        nav = back(nav)
+      case none
+        nav = back(nav)
   action openChart
     nav = push(nav, path("chart"))
   action openTable
@@ -406,8 +469,11 @@ component Curzi
                     text "The old XE feel." color="-exact-secondary-label"
           if e.name == "growth"
             column navigationKey=`${e.id}` navigationScroll="growth-form" position="absolute" inset=0 display="flex" flex-direction="column"
-              header appearance="none" display="flex" align-items="center" padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
-                text "Growth" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex=1
+              header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
+                text "Growth" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex-grow=1 flex-basis="7rem"
+                button press=openCompare aria-label="Compare scenarios" testId="open-compare"
+                  image "symbol:layers"
+                  text (scenarios.length > 0 ? `Compare (${scenarios.length})` : "Compare")
               list id="growth-form" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
                 section background-color="transparent"
                   row role="radiogroup" aria-label="Mode" width="100%" display="flex" flex-wrap="wrap"
@@ -493,6 +559,63 @@ component Curzi
                   button press=openTable testId="open-table"
                     image "symbol:list"
                     text "Value by year"
+                  button press=openSave testId="open-save"
+                    image "symbol:bookmark"
+                    text "Add to comparison"
+          if e.name == "save"
+            column navigationKey=`${e.id}` navigationPresentation="modal" navigationDetent="medium" navigationScroll="save-form" position="absolute" inset=0 display="flex" flex-direction="column"
+              header display="flex" align-items="center" justify-content="space-between" padding="8px 16px"
+                button id="back" press=back aria-label="Cancel" testId="save-cancel"
+                  image "symbol:close"
+                text "Add to comparison" role="heading"
+                button press=saveScenario buttonStyle="bordered-prominent" aria-label="Save" disabled=(scenarioName.trim() == "" or pending(scenarioSaved)) testId="save-scenario"
+                  image "symbol:checkmark"
+              list id="save-form" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                section
+                  row
+                    column flex=1 min-width=0 gap=4
+                      input value=scenarioName input=editName placeholder="Name" aria-label="Scenario name" autofocus=true submit=saveScenario testId="scenario-name"
+                      if saveError != "" and not pending(scenarioSaved)
+                        text saveError font="-exact-footnote" color="-exact-system-red" testId="save-error"
+                  footer
+                    text (withdrawing ? `Withdraw: ${whole(numberOf(startText))} at ${rateText}%, ${whole(numberOf(withdrawalText))} ${frequency}, ${inflationText}% inflation.`
+                      : `Grow: ${whole(numberOf(startText))} at ${rateText}% for ${yearsText} years, ${whole(numberOf(additionText))} ${frequency}, ${inflationText}% inflation.`)
+          if e.name == "compare"
+            column navigationKey=`${e.id}` navigationScroll="compare-list" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Compare" role="heading" aria-level=2
+              if scenarios.length == 0 and not pending(scenarios)
+                EmptyState(symbol="symbol:layers", title="No scenarios yet", message="Add to comparison from Growth, in Grow or Withdraw mode, and they line up here.")
+              else
+                list id="compare-list" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                  if growScenarios.length > 0
+                    section
+                      header
+                        text "Grow"
+                      for x in growScenarios key=x.id
+                        row press=useScenario(x.id) delete=removeScenario(x.id) align-items="center" gap=12 testId=`scenario-${x.id}`
+                          column flex=1 min-width=0
+                            text x.name font-weight=600
+                            text `${whole(x.start)} at ${x.rate}% · ${whole(x.amount)} ${x.frequency} · ${x.years} yrs · ${x.inflation}% inflation` font="-exact-footnote" color="-exact-secondary-label"
+                          column align-items="end"
+                            text whole(x.final) font-weight=600 font-variant-numeric="tabular-nums" testId=`final-${x.id}`
+                            text `${whole(x.realFinal)} today · +${whole(x.profit)}` font="-exact-footnote" color="-exact-secondary-label" font-variant-numeric="tabular-nums"
+                      footer
+                        text "Tap a scenario to load it into the form; swipe to delete it."
+                  if withdrawScenarios.length > 0
+                    section
+                      header
+                        text "Withdraw"
+                      for x in withdrawScenarios key=x.id
+                        row press=useScenario(x.id) delete=removeScenario(x.id) align-items="center" gap=12 testId=`scenario-${x.id}`
+                          column flex=1 min-width=0
+                            text x.name font-weight=600
+                            text `${whole(x.start)} at ${x.rate}% · ${whole(x.amount)} ${x.frequency} · ${x.inflation}% inflation` font="-exact-footnote" color="-exact-secondary-label"
+                          column align-items="end"
+                            text lasts(x.lastsMonths) font-weight=600 text-align="end" testId=`lasts-${x.id}`
+                            text `${whole(x.contributions)} withdrawn · +${whole(x.profit)}` font="-exact-footnote" color="-exact-secondary-label" font-variant-numeric="tabular-nums"
+                      footer
+                        text "Tap a scenario to load it into the form; swipe to delete it."
           if e.name == "chart"
             column navigationKey=`${e.id}` navigationScroll="chart-scroll" position="absolute" inset=0 display="flex" flex-direction="column"
               header padding="8px 16px"

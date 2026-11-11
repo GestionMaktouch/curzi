@@ -265,3 +265,56 @@ test "Grow's result carries over to Withdraw as the starting balance"
   type "rate" "0"
   clock data
   expect text "lasts" == "10 years"
+
+test "scenarios are added with a numbered name, compared by mode, loaded back, and deleted"
+  tap "tab-growth"
+  type "start" "1000"
+  type "rate" "10"
+  type "years" "2"
+  type "addition" "0"
+  type "frequency" "yearly"
+  type "inflation" "0"
+  clock data
+  tap "open-save"
+  clock settle
+  expect text "scenario-name" == "comparison01"
+  tap "save-scenario"
+  clock data
+  clock settle
+  expect state scenarios.length == 1
+  tap "open-save"
+  clock settle
+  expect text "scenario-name" == "comparison02"
+  type "scenario-name" "comparison01"
+  tap "save-scenario"
+  clock data
+  clock settle
+  expect text "save-error" == "There is already a scenario called comparison01."
+  back
+  clock settle
+  tap "mode-withdraw"
+  type "withdrawal" "100"
+  clock data
+  tap "open-save"
+  clock settle
+  type "scenario-name" "retire early"
+  tap "save-scenario"
+  clock data
+  clock settle
+  expect state scenarios.length == 2
+  tap "open-compare"
+  clock settle
+  expect text "final-1" == "1,210"
+  expect text "lasts-2" == "Forever: the balance never runs out"
+  tap "scenario-1"
+  clock settle
+  expect state growthMode == "grow"
+  expect state startText == "1000.00"
+  tap "open-compare"
+  clock settle
+  tap "scenario-2-delete"
+  clock data
+  expect state scenarios.length == 1
+  reload
+  tap "tab-growth"
+  expect state scenarios.length == 1

@@ -7,7 +7,8 @@ import { CURRENCIES } from './currencies.ts';
 const ORIGIN = 'https://open.er-api.com';
 const API = `${ORIGIN}/v6/latest/USD`;
 const CACHE = 'app:/data/rates.json';
-export const grants = [`net.fetch ${ORIGIN}`, `fs.read ${CACHE}`, `fs.write ${CACHE}`].join('\n');
+const SCENARIOS = 'app:/data/scenarios.json';
+export const grants = [`net.fetch ${ORIGIN}`, `fs.read ${CACHE}`, `fs.write ${CACHE}`, `fs.read ${SCENARIOS}`, `fs.write ${SCENARIOS}`].join('\n');
 
 type Feed = { date: string; updatedAt: number; rates: Record<string, number> };
 type Loaded = Feed & { stale: boolean };
@@ -158,7 +159,35 @@ export function projectGrowth(mode: string, start: number, ratePercent: number, 
   };
 }
 
+// Saved scenarios: the inputs only, in a file; each read works the result out again.
+type Saved = { id: string; name: string; mode: string; start: number; rate: number; years: number; amount: number; frequency: string; inflation: number };
+async function readScenarios(storage: Storage): Promise<Saved[]> {
+  try {
+    const parsed: unknown = JSON.parse(decode(await storage.fs.readFile(SCENARIOS)));
+    return Array.isArray(parsed) ? (parsed as Saved[]) : [];
+  } catch {
+    return [];
+  }
+}
+async function writeScenarios(storage: Storage, all: Saved[]): Promise<{ ok: boolean; error: string }> {
+  await storage.fs.atomicWriteFile(SCENARIOS, encode(JSON.stringify(all)));
+  return { ok: true, error: '' };
+}
+
 const sources: Sources = {
+  loadScenarios: async (_args, _store, storage): Promise<Result<'loadScenarios'>> =>
+    (await readScenarios(storage)).map((x) => {
+      const g = projectGrowth(x.mode, x.start, x.rate, x.years, x.amount, x.frequency, x.inflation);
+      return { ...x, final: g.final, contributions: g.contributions, profit: g.profit, realFinal: g.realFinal, lastsMonths: g.lastsMonths };
+    }),
+  addScenario: async ([name, mode, start, rate, years, amount, frequency, inflation], _store, storage): Promise<Result<'addScenario'>> => {
+    const all = await readScenarios(storage);
+    if (all.some((x) => x.name.toLowerCase() === name.toLowerCase())) return { ok: false, error: `There is already a scenario called ${name}.` };
+    const id = String(Math.max(0, ...all.map((x) => Number(x.id))) + 1);
+    return writeScenarios(storage, [...all, { id, name, mode, start, rate, years, amount, frequency, inflation }]);
+  },
+  deleteScenario: async ([id], _store, storage): Promise<Result<'deleteScenario'>> =>
+    writeScenarios(storage, (await readScenarios(storage)).filter((x) => x.id !== id)),
   projectGrowth: async ([mode, start, rate, years, amount, frequency, inflation]): Promise<Result<'projectGrowth'>> => projectGrowth(mode, start, rate, years, amount, frequency, inflation),
   evaluate: async ([expr]): Promise<Result<'evaluate'>> => evaluate(expr),
   allCurrencies: async (): Promise<Result<'allCurrencies'>> => CURRENCIES.map(({ code, name, flag }) => ({ code, name, flag })),
