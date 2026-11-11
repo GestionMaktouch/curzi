@@ -110,8 +110,8 @@ export function evaluate(expr: string): { value: number; ok: boolean } {
 // Compound growth: each period the balance grows by the period's rate and the addition is put in
 // ("grow"), or the withdrawal comes out ("withdraw", where the withdrawal rises with inflation each
 // year and the run ends when the money is gone or after a century). Years are capped at 100 and
-// periods at monthly; every answer is rounded to the cent.
-const PERIODS: Record<string, number> = { monthly: 12, quarterly: 4, yearly: 1 };
+// periods at weekly; every answer is rounded to the cent.
+const PERIODS: Record<string, number> = { weekly: 52, monthly: 12, quarterly: 4, yearly: 1 };
 type Row = { year: number; value: number; contributions: number; profit: number; real: number };
 export function projectGrowth(mode: string, start: number, ratePercent: number, years: number, amount: number, frequency: string, inflationPercent: number): Result<'projectGrowth'> {
   const withdrawing = mode === 'withdraw';

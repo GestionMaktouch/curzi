@@ -189,10 +189,13 @@ test "the Growth tab compounds a balance, and keeps its inputs across a relaunch
   type "frequency" "monthly"
   clock data
   expect state growth.contributions == 3400
+  type "frequency" "weekly"
+  clock data
+  expect state growth.contributions == 11400
   reload
   tap "tab-growth"
   expect state additionText == "100"
-  expect state frequency == "monthly"
+  expect state frequency == "weekly"
 
 test "the chart and the year table open from Growth, and each tab keeps its place"
   tap "tab-growth"
