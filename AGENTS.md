@@ -28,3 +28,20 @@ command confused you, record it: `bun exact.mjs feedback note "<what happened>"`
 exact2's commit and the last exit code, never output or code. `bun exact.mjs feedback status` says
 whether notes are sent and whether to keep a diary; under `never`, skip all of this.
 <!-- exact:end -->
+
+## After every change (required)
+
+When a change is done and verified, install the latest build on both the Android emulator and
+the iOS simulator so the person can try it:
+
+```sh
+bun exact.mjs android && bun exact.mjs ios --run
+```
+
+`android` builds the APK and installs it on the device `ANDROID_SERIAL` names (the `curzi`
+emulator, `emulator-5554`, booted with `~/Library/Android/sdk/emulator/emulator -avd curzi`);
+`ios --run` builds and launches it on the simulator `EXACT_SIM` names (`iPhone 18 Pro`). Both
+need `JAVA_HOME=$(/usr/libexec/java_home -v 21)` and `~/.bun-1.4.2/bin` first on `PATH`.
+Then do one real Android launch (`adb shell am start -n com.maktouch.curzi/dev.exact.app.MainActivity`)
+and check it stays up: `test android` runs on a substituted store and cannot catch a Play
+Billing crash.
