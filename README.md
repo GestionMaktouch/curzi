@@ -56,10 +56,14 @@ bun exact.mjs test android   # the same tests on Android (ANDROID_SERIAL names t
   since Exact's check runs in the app folder.
 - The Hermes bundle for Android from the Ibex release `hermes-vanilla-d412d3bd8512-v5`,
   installed with `bun ../exact/scripts/hermes-android.mjs install <tar.gz>`.
-- The checkout carries a two-file local patch (`host/android/app/build.gradle.kts` and its
-  `AndroidManifest.xml`, see `git -C ../exact diff`) that adds `android:icon="${exactIcon}"` and
-  picks up the app's `android/res` when it holds `mipmap-anydpi-v26/ic_launcher.xml`. Exact's
-  shell has no icon support of its own yet; re-apply the patch if the pin moves.
+- The checkout carries local patches (`git -C ../exact diff`), to re-apply if the pin moves:
+  - `host/android/app/build.gradle.kts` and its `AndroidManifest.xml` add
+    `android:icon="${exactIcon}"` and pick up the app's `android/res` when it holds
+    `mipmap-anydpi-v26/ic_launcher.xml`. Exact's shell has no icon support of its own yet.
+  - `packages/purchases/android/Purchases.kt`: the `PurchasesUpdatedListener` property is moved
+    above the `init` block that builds the BillingClient. Declared below it, the listener is still
+    null at build time and Play Billing 9 throws "Please provide a valid listener", which crashed
+    every real launch (the agent's substituted store never hit it).
 - `gradle.lockfile` and `gradle-verification.xml` are the locked Gradle graph (Play Billing from
   the purchases module); regenerate with `bun exact.mjs android --write-locks` when it changes.
 
