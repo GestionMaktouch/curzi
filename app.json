@@ -1,0 +1,62 @@
+{
+  "$schema": "../exact/scripts/app.schema.json",
+  "name": "Curzi",
+  "short_name": "Curzi",
+  "id": "com.maktouch.curzi",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.maktouch.curzi",
+    "name": "Curzi"
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "minimumOS": "17.0",
+      "deviceFamily": [
+        "iphone",
+        "ipad"
+      ],
+      "launchImage": {
+        "src": "assets/launch.png",
+        "width": 96
+      }
+    },
+    "android": {},
+    "macos": {
+      "minimumOS": "14.0",
+      "window": {
+        "width": 900,
+        "height": 700
+      }
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "ios": "0",
+      "macos": "0"
+    }
+  },
+  "purchases": {
+    "catalog": "store/catalog.json"
+  },
+  "verify": {
+    "accept": [
+      {
+        "finding": "contrast",
+        "node": "key-*",
+        "why": "An operator key is a filled key: white on the accent, as the platform draws its own filled buttons."
+      }
+    ]
+  },
+  "theme_color": "#1F6FEB",
+  "background_color": "#F2F2F7",
+  "icons": [
+    {
+      "src": "assets/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+// Rates come from the network, so no test reads a converted amount; each reads what the app
+// itself decides: the rows, the base, the text, what is kept, and what the screens do.
+test "the default currencies show, and typing in one makes it the base"
+  expect tree has "row-USD"
+  expect tree has "row-CAD"
+  expect tree missing "row-JPY"
+  expect text "amount-CAD" == "100"
+  expect tree missing "keypad"
+  tap "amount-EUR"
+  expect tree has "keypad"
+  expect state base == "EUR"
+  tap "key-2"
+  tap "key-5"
+  tap "key-0"
+  expect state draft == "250"
+  clock data
+  expect state amount == 250
+  tap "key-equals"
+  expect tree missing "keypad"
+  reload
+  expect state base == "EUR"
+  expect text "amount-EUR" == "250.00"
+
+test "the number stays until the first key, which replaces it; emptied, it comes back"
+  tap "amount-CAD"
+  expect text "amount-CAD" == "100"
+  expect state fresh == true
+  tap "key-5"
+  expect state draft == "5"
+  tap "key-equals"
+  expect state draft == "5.00"
+  tap "amount-CAD"
+  tap "key-C"
+  expect state draft == ""
+  tap "key-equals"
+  expect state draft == "5.00"
+  expect tree missing "keypad"
+
+test "the keypad works an expression out, with precedence, and tidies repeated operators"
+  tap "amount-CAD"
+  expect text "key-equals" == "Done"
+  tap "key-5"
+  tap "key-×"
+  expect text "key-equals" == "="
+  tap "key-1"
+  tap "key-0"
+  tap "key-0"
+  tap "key-÷"
+  tap "key-×"
+  tap "key-7"
+  expect state draft == "5×100×7"
+  tap "key-⌫"
+  tap "key-⌫"
+  tap "key-÷"
+  tap "key-7"
+  tap "key-+"
+  tap "key-1"
+  expect state draft == "5×100÷7+1"
+  clock data
+  expect state amount == 72.42857142857143
+  tap "key-equals"
+  expect state draft == "72.43"
+  expect tree missing "keypad"
+
+test "tapping the amount being edited closes the keypad"
+  tap "amount-CAD"
+  expect tree has "keypad"
+  tap "amount-CAD"
+  expect tree missing "keypad"
+  expect text "amount-CAD" == "100.00"
+
+test "a bad amount is 0, not a crash"
+  tap "amount-CAD"
+  tap "key-1"
+  tap "key-."
+  tap "key-2"
+  tap "key-."
+  tap "key-3"
+  clock data
+  expect state evaluated.ok == false
+  expect state amount == 0
+
+test "a currency is added from the sheet and kept"
+  tap "open-add"
+  clock settle
+  type "search" "thai"
+  expect tree has "pick-THB"
+  expect tree missing "pick-CAD"
+  tap "pick-THB"
+  clock settle
+  clock data
+  expect tree has "row-THB"
+  reload
+  expect tree has "row-THB"
+
+test "the long-press menu removes a currency"
+  tap "row-GBP" contextmenu
+  tap "menu-delete"
+  clock data
+  expect tree missing "row-GBP"
+  expect state codes.length == 3
+
+test "a long press pins a currency, and every other row shows its rate"
+  tap "row-CAD" contextmenu
+  tap "menu-pin"
+  expect state pinned == "CAD"
+  expect state codes.0 == "CAD"
+  expect state codes.1 == "USD"
+  expect tree has "pinned-CAD"
+  expect tree missing "rate-CAD"
+  expect tree has "rate-USD"
+  expect tree has "rate-EUR"
+  reload
+  expect state pinned == "CAD"
+  expect state codes.0 == "CAD"
+  tap "row-CAD" contextmenu
+  tap "menu-pin"
+  expect state pinned == ""
+  expect state codes.0 == "CAD"
+  expect tree missing "rate-USD"
+
+test "the grip drags a currency to another slot" on web
+  expect state codes.0 == "USD"
+  tap "grip-CAD" drag to "row-USD"
+  clock settle
+  expect state codes.0 == "CAD"
+  reload
+  expect state codes.0 == "CAD"
+
+test "decimals can be switched off in Settings, rounding every amount"
+  tap "open-settings"
+  clock settle
+  type "decimals" "false"
+  expect state decimals == false
+  back
+  clock settle
+  tap "amount-CAD"
+  tap "key-7"
+  tap "key-÷"
+  tap "key-3"
+  clock data
+  tap "key-equals"
+  expect state draft == "2"
+  reload
+  expect state decimals == false
+
+test "on the web there is no store, and Settings says so" on web
+  tap "open-settings"
+  clock settle
+  expect disabled "support"
+  expect text "support-note" == "Purchases are made in the iOS or Android app."
+
+test "on a phone the store is there and Support Curzi can be tapped" on ios, android
+  tap "open-settings"
+  clock settle
+  expect enabled "support"
+  expect tree has "restore"
+
+test "offline, the rows still show, the note says so, and Try Again recovers"
+  epoch "2026-11-10T12:00:00Z"
+  fail fetch "https://open.er-api.com"
+  expect tree has "row-CAD"
+  tap "open-settings"
+  clock settle
+  expect text "rates-note" == "Couldn’t load rates. Pull down to try again."
+  pass fetch "https://open.er-api.com"
+  tap "retry-rates"
+  clock data
+  expect tree missing "retry-rates"

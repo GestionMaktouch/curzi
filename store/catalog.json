@@ -1,0 +1,16 @@
+[
+  {
+    "itemId": "support",
+    "title": "Support Curzi",
+    "description": "A one-time thank-you that keeps Curzi free.",
+    "type": "product",
+    "price": {
+      "currency": "USD",
+      "value": "2.99"
+    },
+    "displayPrice": "$2.99",
+    "apple": {
+      "type": "nonConsumable"
+    }
+  }
+]
