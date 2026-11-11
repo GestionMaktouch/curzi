@@ -213,3 +213,31 @@ test "the chart and the year table open from Growth, and each tab keeps its plac
   expect tree has "row-USD"
   tap "tab-growth"
   expect tree has "year-3"
+
+test "Withdraw mode says how long the money lasts, and when it never runs out"
+  tap "tab-growth"
+  tap "mode-withdraw"
+  expect tree missing "years"
+  type "start" "1000"
+  type "rate" "0"
+  type "withdrawal" "100"
+  type "frequency" "yearly"
+  type "inflation" "0"
+  clock data
+  expect text "lasts" == "10 years"
+  expect text "withdrawn" == "1,000"
+  expect state growth.lastsMonths == 120
+  type "frequency" "monthly"
+  type "withdrawal" "100"
+  clock data
+  expect text "lasts" == "10 months"
+  type "rate" "10"
+  type "withdrawal" "5"
+  clock data
+  expect state growth.lastsMonths == -1
+  expect text "lasts" == "Forever: the balance never runs out"
+  reload
+  tap "tab-growth"
+  expect state growthMode == "withdraw"
+  tap "mode-grow"
+  expect tree has "years"

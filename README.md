@@ -7,7 +7,9 @@ shows "1 PIN → rate") or delete it. Free; a one-time $2.99 "Support Curzi" pur
 A second tab, **Growth**, is a compound-growth calculator: starting balance, annual return,
 duration, a periodic addition compounded monthly, quarterly or yearly, and an inflation rate.
 It shows the investment value, contributions, profit and the value in today's money, with a
-chart (value, contributions and today's money by year) and a year-by-year table. Built on
+chart (value, contributions and today's money by year) and a year-by-year table. A Grow /
+Withdraw switch turns it into a drawdown calculator: a balance, a periodic withdrawal that
+rises with inflation, and how long the money lasts (or that it never runs out). Built on
 [Exact](https://github.com/expo/exact), Expo's pre-alpha agent-native framework, so one
 `app.contract` runs on the web, iOS and Android.
 

@@ -107,41 +107,59 @@ export function evaluate(expr: string): { value: number; ok: boolean } {
   return Number.isFinite(value) ? { value, ok: true } : { value: 0, ok: false };
 }
 
-// Compound growth: each period the balance grows by the period's rate and the addition is put in.
-// Years are capped at 100 and periods at monthly; every answer is rounded to the cent.
+// Compound growth: each period the balance grows by the period's rate and the addition is put in
+// ("grow"), or the withdrawal comes out ("withdraw", where the withdrawal rises with inflation each
+// year and the run ends when the money is gone or after a century). Years are capped at 100 and
+// periods at monthly; every answer is rounded to the cent.
 const PERIODS: Record<string, number> = { monthly: 12, quarterly: 4, yearly: 1 };
-export function projectGrowth(start: number, ratePercent: number, years: number, addition: number, frequency: string, inflationPercent: number): Result<'projectGrowth'> {
+type Row = { year: number; value: number; contributions: number; profit: number; real: number };
+export function projectGrowth(mode: string, start: number, ratePercent: number, years: number, amount: number, frequency: string, inflationPercent: number): Result<'projectGrowth'> {
+  const withdrawing = mode === 'withdraw';
   const ppy = PERIODS[frequency] ?? 12;
-  const n = Math.max(0, Math.min(100, Math.floor(years)));
+  const n = withdrawing ? 100 : Math.max(0, Math.min(100, Math.floor(years)));
   const r = ratePercent / 100 / ppy;
-  const cents = (x: number) => Math.round(x * 100) / 100;
-  let value = Math.max(0, start), contributions = Math.max(0, start);
   const inflation = 1 + inflationPercent / 100;
-  const rows: { year: number; value: number; contributions: number; profit: number; real: number }[] = [];
-  rows.push({ year: 0, value: cents(value), contributions: cents(contributions), profit: 0, real: cents(value) });
-  for (let y = 1; y <= n; y++) {
+  const cents = (x: number) => Math.round(x * 100) / 100;
+  let value = Math.max(0, start), moved = withdrawing ? 0 : Math.max(0, start), perPeriod = Math.max(0, amount);
+  let lastsMonths = -1;
+  const rows: Row[] = [{ year: 0, value: cents(value), contributions: cents(moved), profit: 0, real: cents(value) }];
+  outer: for (let y = 1; y <= n; y++) {
     for (let p = 0; p < ppy; p++) {
-      value = value * (1 + r) + addition;
-      contributions += addition;
+      value = value * (1 + r);
+      if (withdrawing) {
+        const taken = Math.min(perPeriod, value);
+        value -= taken; moved += taken;
+        if (value <= 0.005) {
+          lastsMonths = Math.round(((y - 1) * ppy + p + 1) * (12 / ppy));
+          value = 0;
+          rows.push({ year: y, value: 0, contributions: cents(moved), profit: cents(moved - Math.max(0, start)), real: 0 });
+          break outer;
+        }
+      } else {
+        value += perPeriod; moved += perPeriod;
+      }
     }
+    if (withdrawing) perPeriod *= inflation;
     // Today's money: the value discounted by the years of inflation.
-    rows.push({ year: y, value: cents(value), contributions: cents(contributions), profit: cents(value - contributions), real: cents(value / Math.pow(inflation, y)) });
+    const profit = withdrawing ? value + moved - Math.max(0, start) : value - moved;
+    rows.push({ year: y, value: cents(value), contributions: cents(moved), profit: cents(profit), real: cents(value / Math.pow(inflation, y)) });
   }
   const last = rows[rows.length - 1];
   const peak = Math.max(...rows.map((row) => Math.max(row.value, row.contributions)), 1);
   // The chart's points in a 320×180 box: 10 px of margin, the years across, the peak at the top.
-  const x = (i: number) => 10 + (n === 0 ? 0 : (i / n) * 300);
+  const span = rows.length - 1;
+  const x = (i: number) => 10 + (span === 0 ? 0 : (i / span) * 300);
   const yOf = (v: number) => 160 - (v / peak) * 150;
-  const points = (pick: (row: typeof last) => number) => rows.map((row, i) => `${x(i).toFixed(1)},${yOf(pick(row)).toFixed(1)}`).join(' ');
+  const points = (pick: (row: Row) => number) => rows.map((row, i) => `${x(i).toFixed(1)},${yOf(pick(row)).toFixed(1)}`).join(' ');
   return {
-    final: last.value, contributions: last.contributions, profit: last.profit, realFinal: last.real, years: rows,
+    final: last.value, contributions: last.contributions, profit: last.profit, realFinal: last.real, lastsMonths, years: rows,
     valuePoints: points((row) => row.value), contributionPoints: points((row) => row.contributions),
     realPoints: points((row) => row.real), peak: cents(peak),
   };
 }
 
 const sources: Sources = {
-  projectGrowth: async ([start, rate, years, addition, frequency, inflation]): Promise<Result<'projectGrowth'>> => projectGrowth(start, rate, years, addition, frequency, inflation),
+  projectGrowth: async ([mode, start, rate, years, amount, frequency, inflation]): Promise<Result<'projectGrowth'>> => projectGrowth(mode, start, rate, years, amount, frequency, inflation),
   evaluate: async ([expr]): Promise<Result<'evaluate'>> => evaluate(expr),
   allCurrencies: async (): Promise<Result<'allCurrencies'>> => CURRENCIES.map(({ code, name, flag }) => ({ code, name, flag })),
   loadRates: async (_args, _store, storage): Promise<Result<'loadRates'>> => {
