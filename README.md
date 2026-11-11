@@ -2,7 +2,12 @@
 
 The old XE feel: a list of the currencies you use, tap any amount, type on the built-in
 calculator keypad (`5×100÷7` works), and every other row updates at once. Drag the grip to reorder; long-press a row to pin it (every other row then
-shows "1 PIN → rate") or delete it. Free; a one-time $2.99 "Support Curzi" purchase says thanks. Built on
+shows "1 PIN → rate") or delete it. Free; a one-time $2.99 "Support Curzi" purchase says thanks.
+
+A second tab, **Growth**, is a compound-growth calculator: starting balance, annual return,
+duration, a periodic addition compounded monthly, quarterly or yearly, and an inflation rate.
+It shows the investment value, contributions, profit and the value in today's money, with a
+chart (value, contributions and today's money by year) and a year-by-year table. Built on
 [Exact](https://github.com/expo/exact), Expo's pre-alpha agent-native framework, so one
 `app.contract` runs on the web, iOS and Android.
 
@@ -10,8 +15,8 @@ shows "1 PIN → rate") or delete it. Free; a one-time $2.99 "Support Curzi" pur
 
 | File | What it is |
 |---|---|
-| `app.contract` | The view: the card list with grip, pin and menu; the keypad; the Add Currency sheet; Settings |
-| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, purchase delivery |
+| `app.contract` | The view: the Convert tab (card list with grip, pin and menu; the keypad; the Add Currency sheet; Settings) and the Growth tab (form, chart, table) |
+| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, the growth projection, purchase delivery |
 | `currencies.ts` | ISO 4217 codes with names and flags |
 | `app.test.contract` | The tests (`bun exact.mjs test web`, `test ios`) |
 | `store/catalog.json` | The store catalogue: the `support` non-consumable |

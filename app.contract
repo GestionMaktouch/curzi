@@ -1,12 +1,15 @@
 // Curzi: the old XE feel. A list of the currencies you use; tap any amount, type, and every
 // other row follows. Free; a one-time purchase supports it. Colours, fonts and controls are left unsaid, so each platform draws its own.
-use EmptyState from "exact:content"
+use EmptyState, RowText from "exact:content"
 use getDetails, listPurchases, unfinishedPurchases, purchase, restorePurchases, purchasesStatus, ItemDetails, PurchaseDetails, PurchasesStatus from "@exact/purchases"
 
 routes nav
-  home "/"
+  tab fx "/"
     add "/add"
     settings "/settings"
+  tab growth "/growth"
+    chart "/growth/chart"
+    table "/growth/table"
 
 shape Currency
   code: string
@@ -32,6 +35,25 @@ shape Time
 shape Delivery
   finished: number
 
+// A year of the growth projection, and the whole of it (app.ts compounds it).
+shape Year
+  year: number
+  value: number
+  contributions: number
+  profit: number
+  real: number
+
+shape Growth
+  final: number
+  contributions: number
+  profit: number
+  years: Year[]
+  realFinal: number
+  valuePoints: string
+  contributionPoints: string
+  realPoints: string
+  peak: number
+
 // What the typed expression comes to (app.ts evaluates `5×100÷7`).
 shape Eval
   value: number
@@ -48,6 +70,8 @@ fn money(n: number, decimals: bool): string = (not decimals ? formatNumber(round
 // The field's own text while you edit it: exact, ungrouped.
 fn plain(n: number, decimals: bool): string = (not decimals ? `${round(n)}`
   : n >= 1 or n == 0 ? formatDecimal(round(n * 100), 2) : formatDecimal(round(n * 10000), 4))
+fn whole(n: number): string = formatNumber(round(n), "decimal")
+fn numberOf(text: string): number = match parseNumber(text) { case some(n) => n, case none => 0 }
 // "just now", "5 minutes ago", "3 hours ago", "2 days ago".
 fn ago(ms: number): string = (ms < 60000 ? "just now"
   : ms < 3600000 ? `${floor(ms / 60000)} ${floor(ms / 60000) == 1 ? "minute" : "minutes"} ago`
@@ -72,6 +96,13 @@ component Curzi
   state pinned = "USD" persist
   // Amounts to the cent, or rounded to whole units (Settings).
   state decimals = true persist
+  // The growth calculator's inputs, as typed.
+  state startText = "10000" persist
+  state rateText = "7" persist
+  state yearsText = "20" persist
+  state additionText = "500" persist
+  state frequency = "monthly" persist
+  state inflationText = "2" persist
   // The row a long press opened the menu on.
   state aimed = ""
   state query = ""
@@ -81,6 +112,7 @@ component Curzi
   state now = 0
   resource rates = loadRates() as shape Rates else empty()
   resource evaluated = evaluate(draft) as shape Eval else empty(value=0, ok=true)
+  resource growth = projectGrowth(numberOf(startText), numberOf(rateText), numberOf(yearsText), numberOf(additionText), frequency, numberOf(inflationText)) as shape Growth else empty()
   resource rows = loadRows(codes) with rates.date as shape Row[] else empty()
   resource all = allCurrencies() as shape Currency[] else empty()
 
@@ -125,6 +157,25 @@ component Curzi
     scrollIntoView("rates", base, block="nearest")
   action follow(url: string)
     nav = go(nav, url)
+  action pickTab(name: string)
+    keypad = false
+    nav = select(nav, name)
+  action editStart(v: string)
+    startText = v
+  action editRate(v: string)
+    rateText = v
+  action editYears(v: string)
+    yearsText = v
+  action editAddition(v: string)
+    additionText = v
+  action setFrequency(v: string)
+    frequency = v
+  action editInflation(v: string)
+    inflationText = v
+  action openChart
+    nav = push(nav, path("chart"))
+  action openTable
+    nav = push(nav, path("table"))
   action back
     nav = back(nav)
   action openAdd
@@ -215,120 +266,228 @@ component Curzi
     send delivered = deliverPurchases()
 
   view
-    main testId="root" navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow width="100%" height="100%"
-      for e in stack(nav) key=e.id
-        if e.name == "home"
-          column navigationKey=`${e.id}` navigationScroll="rates" position="absolute" inset=0 display="flex" flex-direction="column"
-            // Drawn as written on every host: the name and the cog on one line, under the status bar.
-            header appearance="none" display="flex" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
-              text "Curzi" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex=1
-              button press=openSettings aria-label="Settings" testId="open-settings"
-                image "symbol:settings"
-            // A plain list of cards (a grouped list cannot be virtualized, and a drag to reorder needs one).
-            // It takes only the height its rows need, up to what the header leaves, so the Add button follows the rows.
-            column flex=1 min-height=0
-              list id="rates" appearance="none" virtualized=true reorderdrop=moveRow flex-shrink=1 min-height=0 max-height="100%" width="100%" overflow-x="hidden"
-                padding-left=16 padding-right=16 box-sizing="border-box" refresh=reload refreshing=pending(rates)
-                for r in items key=r.code
-                  column width="100%" testId=`item-${r.code}`
-                    if r.code == "+"
-                      button press=openAdd appearance="none" width="100%" box-sizing="border-box" display="flex" align-items="center" justify-content="center" gap=6
-                        padding=10 color="AccentColor" font="-exact-subheadline" testId="open-add"
-                        image "symbol:add"
-                        text "Add another currency"
-                    else
-                      // The grip drags the row to another slot; a long press opens Pin and Delete.
-                      row contextmenu=aim(r.code) contextPopover="row-menu"
-                        flex-wrap="wrap" align-items="center" gap=10 padding="12px 14px" margin-bottom=10 border-radius=16
-                        width="100%" box-sizing="border-box" background-color="-exact-secondary-background" testId=`row-${r.code}`
-                        // The row being typed in is outlined in the accent; every row carries the border so none moves.
-                        border-width=2 border-style="solid" border-color=(keypad and r.code == base ? "AccentColor" : "transparent")
-                        box reorderFor="rates" touch-action="none" aria-label=`Drag ${r.name} to reorder` padding=6 testId=`grip-${r.code}`
-                          image "symbol:reorder" color="-exact-tertiary-label"
-                        text r.flag aria-hidden=true
-                        text r.code font-weight=600 aria-label=r.name testId=`code-${r.code}`
-                        if r.code == pinned
-                          image "symbol:pin" color="-exact-secondary-label" aria-label="Pinned" testId=`pinned-${r.code}`
-                        // The amount, and under it the pinned currency's rate, at the row's end; at accessibility
-                        // text sizes it takes a line of its own.
-                        column flex-grow=1 flex-shrink=1 flex-basis="8rem" min-width=0
-                          // The amount is a number you tap, not a form field; the base row shows what you typed.
-                          row press=begin(r.code) role="button" tabindex=0 justify-content="end" min-width=0 padding="4px 0"
-                            aria-label=`Amount in ${r.name}` testId=`amount-${r.code}`
-                            text (r.code == base ? (draft == "" ? held : draft) : money(convert(amount, baseRate, r.rate), decimals))
-                              font-family="ui-monospace" font-size="1.25rem" font-weight=600 font-variant-numeric="tabular-nums"
-                              // While editing: grey until the first key replaces the old number, then the accent.
-                              color=(keypad and r.code == base ? (fresh or draft == "" ? "-exact-secondary-label" : "AccentColor") : "-exact-label")
-                              -exact-fit="shrink" white-space="nowrap" min-width=0
-                          if pinned != "" and r.code != pinned
-                            text `1 ${pinned} → ${rateText(convert(1, pinnedRate, r.rate))} ${r.code}` font="-exact-footnote"
-                              color="-exact-secondary-label" font-variant-numeric="tabular-nums" text-align="end" testId=`rate-${r.code}`
-            if keypad
-              Keypad(key=key, done=done, equals=hasOperator)
-        if e.name == "add"
-          column navigationKey=`${e.id}` navigationPresentation="modal" navigationScroll="candidates" position="absolute" inset=0 display="flex" flex-direction="column"
-            header display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="8px 16px"
-              button id="back" press=back aria-label="Cancel" testId="add-cancel"
-                image "symbol:close"
-              text "Add Currency" role="heading" flex=1
-              input type="search" value=query input=search placeholder="Search" aria-label="Search Currencies"
-                autofocus=true testId="search" width="100%"
-            if candidates.length == 0 and not pending(all)
-              EmptyState(symbol="symbol:search", title=`No Results for “${query.trim()}”`, message="Try the code (EUR) or the name (Euro).")
-            else
-              list id="candidates" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+    main testId="root" navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow
+      width="100%" height="100%" display="flex" flex-direction="column"
+      column flex=1 min-height=0 position="relative"
+       for t in nav.tabs key=t.name
+        column role="tabpanel" id=`panel-${t.name}` position="absolute" inset=0
+         for e in t.stack key=e.id
+          if e.name == "fx"
+            column navigationKey=`${e.id}` navigationScroll="rates" position="absolute" inset=0 display="flex" flex-direction="column"
+              // Drawn as written on every host: the name and the cog on one line, under the status bar.
+              header appearance="none" display="flex" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
+                text "Curzi" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex=1
+                button press=openSettings aria-label="Settings" testId="open-settings"
+                  image "symbol:settings"
+              // A plain list of cards (a grouped list cannot be virtualized, and a drag to reorder needs one).
+              // It takes only the height its rows need, up to what the header leaves, so the Add button follows the rows.
+              column flex=1 min-height=0
+                list id="rates" appearance="none" virtualized=true reorderdrop=moveRow flex-shrink=1 min-height=0 max-height="100%" width="100%" overflow-x="hidden"
+                  padding-left=16 padding-right=16 box-sizing="border-box" refresh=reload refreshing=pending(rates)
+                  for r in items key=r.code
+                    column width="100%" testId=`item-${r.code}`
+                      if r.code == "+"
+                        button press=openAdd appearance="none" width="100%" box-sizing="border-box" display="flex" align-items="center" justify-content="center" gap=6
+                          padding=10 color="AccentColor" font="-exact-subheadline" testId="open-add"
+                          image "symbol:add"
+                          text "Add another currency"
+                      else
+                        // The grip drags the row to another slot; a long press opens Pin and Delete.
+                        row contextmenu=aim(r.code) contextPopover="row-menu"
+                          flex-wrap="wrap" align-items="center" gap=10 padding="12px 14px" margin-bottom=10 border-radius=16
+                          width="100%" box-sizing="border-box" background-color="-exact-secondary-background" testId=`row-${r.code}`
+                          // The row being typed in is outlined in the accent; every row carries the border so none moves.
+                          border-width=2 border-style="solid" border-color=(keypad and r.code == base ? "AccentColor" : "transparent")
+                          box reorderFor="rates" touch-action="none" aria-label=`Drag ${r.name} to reorder` padding=6 testId=`grip-${r.code}`
+                            image "symbol:reorder" color="-exact-tertiary-label"
+                          text r.flag aria-hidden=true
+                          text r.code font-weight=600 aria-label=r.name testId=`code-${r.code}`
+                          if r.code == pinned
+                            image "symbol:pin" color="-exact-secondary-label" aria-label="Pinned" testId=`pinned-${r.code}`
+                          // The amount, and under it the pinned currency's rate, at the row's end; at accessibility
+                          // text sizes it takes a line of its own.
+                          column flex-grow=1 flex-shrink=1 flex-basis="8rem" min-width=0
+                            // The amount is a number you tap, not a form field; the base row shows what you typed.
+                            row press=begin(r.code) role="button" tabindex=0 justify-content="end" min-width=0 padding="4px 0"
+                              aria-label=`Amount in ${r.name}` testId=`amount-${r.code}`
+                              text (r.code == base ? (draft == "" ? held : draft) : money(convert(amount, baseRate, r.rate), decimals))
+                                font-family="ui-monospace" font-size="1.25rem" font-weight=600 font-variant-numeric="tabular-nums"
+                                // While editing: grey until the first key replaces the old number, then the accent.
+                                color=(keypad and r.code == base ? (fresh or draft == "" ? "-exact-secondary-label" : "AccentColor") : "-exact-label")
+                                -exact-fit="shrink" white-space="nowrap" min-width=0
+                            if pinned != "" and r.code != pinned
+                              text `1 ${pinned} → ${rateText(convert(1, pinnedRate, r.rate))} ${r.code}` font="-exact-footnote"
+                                color="-exact-secondary-label" font-variant-numeric="tabular-nums" text-align="end" testId=`rate-${r.code}`
+              if keypad
+                Keypad(key=key, done=done, equals=hasOperator)
+          if e.name == "add"
+            column navigationKey=`${e.id}` navigationPresentation="modal" navigationScroll="candidates" position="absolute" inset=0 display="flex" flex-direction="column"
+              header display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="8px 16px"
+                button id="back" press=back aria-label="Cancel" testId="add-cancel"
+                  image "symbol:close"
+                text "Add Currency" role="heading" flex=1
+                input type="search" value=query input=search placeholder="Search" aria-label="Search Currencies"
+                  autofocus=true testId="search" width="100%"
+              if candidates.length == 0 and not pending(all)
+                EmptyState(symbol="symbol:search", title=`No Results for “${query.trim()}”`, message="Try the code (EUR) or the name (Euro).")
+              else
+                list id="candidates" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                  section
+                    for c in candidates key=c.code
+                      // Three children keep it a flex row (two would be a title and its accessory on iOS).
+                      row press=addCurrency(c.code) aria-label=`Add ${c.name}` testId=`pick-${c.code}`
+                        text c.flag aria-hidden=true
+                        column flex=1 min-width=0
+                          text c.code font-weight=600
+                          text c.name font="-exact-footnote" color="-exact-secondary-label"
+                        image "symbol:add" color="-exact-tertiary-label"
+          if e.name == "settings"
+            column navigationKey=`${e.id}` navigationScroll="settings" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Settings" role="heading" aria-level=2
+              list id="settings" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
                 section
-                  for c in candidates key=c.code
-                    // Three children keep it a flex row (two would be a title and its accessory on iOS).
-                    row press=addCurrency(c.code) aria-label=`Add ${c.name}` testId=`pick-${c.code}`
-                      text c.flag aria-hidden=true
-                      column flex=1 min-width=0
-                        text c.code font-weight=600
-                        text c.name font="-exact-footnote" color="-exact-secondary-label"
-                      image "symbol:add" color="-exact-tertiary-label"
-        if e.name == "settings"
-          column navigationKey=`${e.id}` navigationScroll="settings" position="absolute" inset=0 display="flex" flex-direction="column"
-            header padding="8px 16px"
-              text "Settings" role="heading" aria-level=2
-            list id="settings" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
-              section
-                header
-                  text "Support"
-                if supporter
+                  header
+                    text "Support"
+                  if supporter
+                    row
+                      text "You support Curzi. Thank you!" testId="supporter"
+                  else
+                    button press=buy disabled=(pending(bought) or not store.available) testId="support"
+                      text (pending(bought) ? "Buying…" : `Support Curzi · ${price}`)
+                  button press=restore disabled=pending(restored) testId="restore"
+                    text "Restore Purchases"
+                  footer
+                    text (thanks != "" ? thanks : purchaseError != "" ? purchaseError : not store.available ? "Purchases are made in the iOS or Android app." : "Curzi is free. One payment, no subscription, says thanks and keeps it that way.") testId="support-note"
+                section
+                  header
+                    text "Display"
                   row
-                    text "You support Curzi. Thank you!" testId="supporter"
-                else
-                  button press=buy disabled=(pending(bought) or not store.available) testId="support"
-                    text (pending(bought) ? "Buying…" : `Support Curzi · ${price}`)
-                button press=restore disabled=pending(restored) testId="restore"
-                  text "Restore Purchases"
-                footer
-                  text (thanks != "" ? thanks : purchaseError != "" ? purchaseError : not store.available ? "Purchases are made in the iOS or Android app." : "Curzi is free. One payment, no subscription, says thanks and keeps it that way.") testId="support-note"
-              section
-                header
-                  text "Display"
-                row
-                  text "Show decimals"
-                  input type="checkbox" switch checked=decimals change=setDecimals aria-label="Show decimals" testId="decimals"
-                footer
-                  text (decimals ? "Amounts to the cent." : "Amounts rounded to whole units.")
-              section
-                header
-                  text "Rates"
-                row
-                  text "Source"
-                  text "Exchange Rate API" color="-exact-secondary-label"
-                if failed(rates) and rates.date == ""
-                  button press=reload testId="retry-rates"
-                    text "Try Again"
-                footer
-                  text ratesNote testId="rates-note"
-              section
-                header
-                  text "About"
-                row
-                  text "Curzi"
-                  text "The old XE feel." color="-exact-secondary-label"
+                    text "Show decimals"
+                    input type="checkbox" switch checked=decimals change=setDecimals aria-label="Show decimals" testId="decimals"
+                  footer
+                    text (decimals ? "Amounts to the cent." : "Amounts rounded to whole units.")
+                section
+                  header
+                    text "Rates"
+                  row
+                    text "Source"
+                    text "Exchange Rate API" color="-exact-secondary-label"
+                  if failed(rates) and rates.date == ""
+                    button press=reload testId="retry-rates"
+                      text "Try Again"
+                  footer
+                    text ratesNote testId="rates-note"
+                section
+                  header
+                    text "About"
+                  row
+                    text "Curzi"
+                    text "The old XE feel." color="-exact-secondary-label"
+          if e.name == "growth"
+            column navigationKey=`${e.id}` navigationScroll="growth-form" position="absolute" inset=0 display="flex" flex-direction="column"
+              header appearance="none" display="flex" align-items="center" padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
+                text "Growth" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex=1
+              list id="growth-form" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                section
+                  row
+                    text "Starting balance"
+                    input value=startText input=editStart inputmode="decimal" aria-label="Starting balance" text-align="end" flex=1 min-width=0 testId="start"
+                  row
+                    text "Annual return"
+                    input value=rateText input=editRate inputmode="decimal" aria-label="Annual return, percent" text-align="end" flex=1 min-width=0 testId="rate"
+                    text "%" color="-exact-secondary-label"
+                  row
+                    text "Duration"
+                    input value=yearsText input=editYears inputmode="numeric" aria-label="Duration, years" text-align="end" flex=1 min-width=0 testId="years"
+                    text "years" color="-exact-secondary-label"
+                  row
+                    text "Periodic addition"
+                    input value=additionText input=editAddition inputmode="decimal" aria-label="Periodic addition" text-align="end" flex=1 min-width=0 testId="addition"
+                  row
+                    text "Compound and add"
+                    select value=frequency change=setFrequency aria-label="Compound and add" testId="frequency"
+                      option "Monthly" value="monthly"
+                      option "Quarterly" value="quarterly"
+                      option "Yearly" value="yearly"
+                  row
+                    text "Inflation"
+                    input value=inflationText input=editInflation inputmode="decimal" aria-label="Inflation, percent a year" text-align="end" flex=1 min-width=0 testId="inflation"
+                    text "%" color="-exact-secondary-label"
+                  footer
+                    text `Each period the balance grows by the rate and the addition is put in. Inflation discounts the result to today's money.`
+                section
+                  header
+                    text `After ${whole(numberOf(yearsText))} years`
+                  row
+                    text "Investment value"
+                    text whole(growth.final) font-weight=600 font-variant-numeric="tabular-nums" testId="final"
+                  row
+                    text "Contributions"
+                    text whole(growth.contributions) font-variant-numeric="tabular-nums" testId="contributions"
+                  row
+                    text "Profit"
+                    text whole(growth.profit) font-variant-numeric="tabular-nums" testId="profit"
+                  row
+                    text "In today's money"
+                    text whole(growth.realFinal) font-variant-numeric="tabular-nums" color="-exact-secondary-label" testId="real"
+                section
+                  button press=openChart testId="open-chart"
+                    image "symbol:chart"
+                    text "Show chart"
+                  button press=openTable testId="open-table"
+                    image "symbol:list"
+                    text "Value by year"
+          if e.name == "chart"
+            column navigationKey=`${e.id}` navigationScroll="chart-scroll" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Chart" role="heading" aria-level=2
+              scroll id="chart-scroll" flex=1 min-height=0
+                column padding=16 gap=12
+                  text `${whole(growth.final)} after ${whole(numberOf(yearsText))} years` font="-exact-headline" testId="chart-title"
+                  // The value and the contributions over the years, as a web developer draws them: an svg of two polylines.
+                  svg width="100%" viewBox="0 0 320 180" aria-label="Investment value and contributions by year" testId="chart"
+                    line x1=10 y1=160 x2=310 y2=160 stroke="-exact-separator" stroke-width=1
+                    line x1=10 y1=10 x2=10 y2=160 stroke="-exact-separator" stroke-width=1
+                    polyline points=growth.contributionPoints fill="none" stroke="-exact-secondary-label" stroke-width=2 stroke-linejoin="round" testId="contribution-line"
+                    polyline points=growth.realPoints fill="none" stroke="-exact-secondary-label" stroke-width=2 stroke-dasharray="4 4" stroke-linejoin="round" testId="real-line"
+                    polyline points=growth.valuePoints fill="none" stroke="AccentColor" stroke-width=3 stroke-linejoin="round" stroke-linecap="round" testId="value-line"
+                  row justify-content="space-between"
+                    text "Year 0" font="-exact-footnote" color="-exact-secondary-label"
+                    text `Peak ${whole(growth.peak)}` font="-exact-footnote" color="-exact-secondary-label"
+                    text `Year ${whole(numberOf(yearsText))}` font="-exact-footnote" color="-exact-secondary-label"
+                  row gap=16
+                    row align-items="center" gap=6
+                      box width=14 height=3 background-color="AccentColor"
+                      text "Value" font="-exact-footnote"
+                    row align-items="center" gap=6
+                      box width=14 height=2 background-color="-exact-secondary-label"
+                      text "Contributions" font="-exact-footnote"
+                    row align-items="center" gap=6
+                      text "- -" font="-exact-footnote" color="-exact-secondary-label" font-weight=700
+                      text "Today's money" font="-exact-footnote"
+          if e.name == "table"
+            column navigationKey=`${e.id}` navigationScroll="table-list" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Value by year" role="heading" aria-level=2
+              list id="table-list" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                section
+                  for y in growth.years key=y.year
+                    row align-items="center" gap=12 testId=`year-${y.year}`
+                      column flex=1 min-width=0
+                        text `Year ${y.year}` font-weight=600
+                        text `Put in ${whole(y.contributions)} · Profit ${whole(y.profit)}` font="-exact-footnote" color="-exact-secondary-label"
+                      column align-items="end"
+                        text whole(y.value) font-variant-numeric="tabular-nums" font-weight=600
+                        text `${whole(y.real)} today` font="-exact-footnote" color="-exact-secondary-label" font-variant-numeric="tabular-nums"
+      // The tab bar: Convert and Growth.
+      row role="tablist"
+        button role="tab" aria-controls="panel-fx" aria-selected=(nav.tab == "fx") press=pickTab("fx") testId="tab-fx" flex=1
+          image "symbol:repeat" font-size="min(-exact-subheadline, 31px)"
+          text "Convert" font-size="min(-exact-subheadline, 31px)"
+        button role="tab" aria-controls="panel-growth" aria-selected=(nav.tab == "growth") press=pickTab("growth") testId="tab-growth" flex=1
+          image "symbol:chart" font-size="min(-exact-subheadline, 31px)"
+          text "Growth" font-size="min(-exact-subheadline, 31px)"
       // One long-press menu for every currency row, acting on `aimed` (iOS: a UIMenu over the row).
       column id="row-menu" popover="auto" role="menu"
         button press=togglePin popovertarget="row-menu" popovertargetaction="hide" testId="menu-pin"
@@ -346,8 +505,9 @@ component Keypad
     done: action
     equals: bool
   view
+    // At accessibility text sizes the keypad can be taller than the room above the tab bar: it scrolls then.
     column gap=8 padding="8px 12px" padding-bottom="calc(8px + env(safe-area-inset-bottom))" testId="keypad"
-      background-color="-exact-secondary-background"
+      background-color="-exact-secondary-background" flex-shrink=1 min-height=0 overflow-y="auto"
       KeyRow(keys=["C", "⌫", "%", "÷"], ops=["%", "÷"], key=key, done=done)
       KeyRow(keys=["7", "8", "9", "×"], ops=["×"], key=key, done=done)
       KeyRow(keys=["4", "5", "6", "−"], ops=["−"], key=key, done=done)
@@ -382,7 +542,7 @@ component Key
       button press=done appearance="none" flex=1 min-width=0 min-height=44 padding="10px 4px" border-radius=12
         display="flex" align-items="center" justify-content="center" gap=4 background-color="AccentColor"
         aria-label=(label == "=" ? "Equals and done" : "Done") testId="key-equals"
-        text label font-size="1.25rem" font-weight=600 color="white" -exact-fit="shrink" white-space="nowrap"
+        text label font-size="min(-exact-title3, 24px)" font-weight=600 color="white" -exact-fit="shrink" white-space="nowrap"
     else
       button press=key(label) appearance="none" flex=(wide ? 2 : 1) min-width=0 min-height=44 padding="10px 4px" border-radius=12
         display="flex" align-items="center" justify-content="center" background-color=(op ? "AccentColor" : "-exact-secondary-fill")

@@ -167,3 +167,49 @@ test "offline, the rows still show, the note says so, and Try Again recovers"
   tap "retry-rates"
   clock data
   expect tree missing "retry-rates"
+
+test "the Growth tab compounds a balance, and keeps its inputs across a relaunch"
+  tap "tab-growth"
+  type "start" "1000"
+  type "rate" "10"
+  type "years" "2"
+  type "addition" "0"
+  type "frequency" "yearly"
+  type "inflation" "0"
+  clock data
+  expect text "final" == "1,210"
+  expect text "contributions" == "1,000"
+  expect text "profit" == "210"
+  expect text "real" == "1,210"
+  expect state growth.years.2 .value == 1210
+  type "inflation" "10"
+  clock data
+  expect state growth.realFinal == 1000
+  type "addition" "100"
+  type "frequency" "monthly"
+  clock data
+  expect state growth.contributions == 3400
+  reload
+  tap "tab-growth"
+  expect state additionText == "100"
+  expect state frequency == "monthly"
+
+test "the chart and the year table open from Growth, and each tab keeps its place"
+  tap "tab-growth"
+  type "years" "3"
+  clock data
+  tap "open-chart"
+  clock settle
+  expect tree has "value-line"
+  expect tree has "contribution-line"
+  expect tree has "real-line"
+  back
+  clock settle
+  tap "open-table"
+  clock settle
+  expect tree has "year-3"
+  expect tree missing "year-4"
+  tap "tab-fx"
+  expect tree has "row-USD"
+  tap "tab-growth"
+  expect tree has "year-3"
