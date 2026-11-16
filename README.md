@@ -9,7 +9,13 @@ duration, a periodic addition compounded monthly, quarterly or yearly, and an in
 It shows the investment value, contributions, profit and the value in today's money, with a
 chart (value, contributions and today's money by year) and a year-by-year table. A Grow /
 Withdraw switch turns it into a drawdown calculator: a balance, a periodic withdrawal that
-rises with inflation, and how long the money lasts (or that it never runs out). Built on
+rises with inflation, and how long the money lasts (or that it never runs out). Scenarios can be
+saved and compared.
+
+A third tab, **Mortgage**: home price, down payment, rate, amortization, term, payment frequency
+(monthly to accelerated weekly) and compounding (semi-annual for Canada, monthly for the US). It
+shows the payment, total interest and total paid, when it's paid off, the balance and interest at
+the end of the term, with a chart and a balance-by-year table. Built on
 [Exact](https://github.com/expo/exact), Expo's pre-alpha agent-native framework, so one
 `app.contract` runs on the web, iOS and Android.
 
@@ -17,8 +23,8 @@ rises with inflation, and how long the money lasts (or that it never runs out). 
 
 | File | What it is |
 |---|---|
-| `app.contract` | The view: the Convert tab (card list with grip, pin and menu; the keypad; the Add Currency sheet; Settings) and the Growth tab (form, chart, table) |
-| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, the growth projection, purchase delivery |
+| `app.contract` | The view: the Convert tab (card list with grip, pin and menu; the keypad; the Add Currency sheet; Settings) the Growth tab (form, chart, table, scenarios) and the Mortgage tab |
+| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, the growth projection, the mortgage amortization, purchase delivery |
 | `currencies.ts` | ISO 4217 codes with names and flags |
 | `app.test.contract` | The tests (`bun exact.mjs test web`, `test ios`) |
 | `store/catalog.json` | The store catalogue: the `support` non-consumable |

@@ -12,6 +12,9 @@ routes nav
     table "/growth/table"
     save "/growth/save"
     compare "/growth/compare"
+  tab mortgage "/mortgage"
+    mchart "/mortgage/chart"
+    mtable "/mortgage/table"
 
 shape Currency
   code: string
@@ -56,6 +59,28 @@ shape Growth
   valuePoints: string
   contributionPoints: string
   realPoints: string
+  peak: number
+
+// A year of a mortgage, and the whole schedule (app.ts amortizes it).
+shape MYear
+  year: number
+  balance: number
+  principalPaid: number
+  interestPaid: number
+
+shape Mortgage
+  loan: number
+  payment: number
+  periods: number
+  totalPaid: number
+  totalInterest: number
+  payoffMonths: number
+  termBalance: number
+  termPrincipal: number
+  termInterest: number
+  years: MYear[]
+  balancePoints: string
+  interestPoints: string
   peak: number
 
 // A saved scenario, with its result worked out again each time it is read.
@@ -138,6 +163,14 @@ component Curzi
   state inflationText = "2" persist
   state withdrawalText = "500" persist
   state scenarioName = ""
+  // The mortgage calculator's inputs, as typed. Canada's semi-annual compounding by default.
+  state priceText = "500000" persist
+  state downText = "100000" persist
+  state mortgageRateText = "5" persist
+  state amortizationText = "25" persist
+  state termText = "5" persist
+  state paymentFrequency = "monthly" persist
+  state compounding = "semi-annual" persist
   // The row a long press opened the menu on.
   state aimed = ""
   state query = ""
@@ -151,6 +184,10 @@ component Curzi
   resource scenarios = loadScenarios() as shape Scenario[] else empty()
   mutation scenarioSaved as shape Reply refreshes scenarios then afterSaved
   mutation scenarioRemoved as shape Reply refreshes scenarios
+  resource mortgage = amortize(numberOf(priceText), numberOf(downText), numberOf(mortgageRateText), numberOf(amortizationText), paymentFrequency, compounding, numberOf(termText)) as shape Mortgage else empty()
+  derive downPercent = numberOf(priceText) > 0 ? numberOf(downText) / numberOf(priceText) * 100 : 0
+  derive frequencyLabel = (paymentFrequency == "monthly" ? "month" : paymentFrequency == "semi-monthly" ? "half-month"
+    : paymentFrequency == "weekly" or paymentFrequency == "accelerated-weekly" ? "week" : "two weeks")
   derive growScenarios = scenarios.filter(x => x.mode == "grow")
   derive withdrawScenarios = scenarios.filter(x => x.mode == "withdraw")
   derive saveError = match scenarioSaved { case some(r) => r.error, case none => "" }
@@ -255,6 +292,24 @@ component Curzi
         nav = back(nav)
       case none
         nav = back(nav)
+  action editPrice(v: string)
+    priceText = v
+  action editDown(v: string)
+    downText = v
+  action editMortgageRate(v: string)
+    mortgageRateText = v
+  action editAmortization(v: string)
+    amortizationText = v
+  action editTerm(v: string)
+    termText = v
+  action setPaymentFrequency(v: string)
+    paymentFrequency = v
+  action setCompounding(v: string)
+    compounding = v
+  action openMortgageChart
+    nav = push(nav, path("mchart"))
+  action openMortgageTable
+    nav = push(nav, path("mtable"))
   action openChart
     nav = push(nav, path("chart"))
   action openTable
@@ -616,6 +671,118 @@ component Curzi
                             text `${whole(x.contributions)} withdrawn · +${whole(x.profit)}` font="-exact-footnote" color="-exact-secondary-label" font-variant-numeric="tabular-nums"
                       footer
                         text "Tap a scenario to load it into the form; swipe to delete it."
+          if e.name == "mortgage"
+            column navigationKey=`${e.id}` navigationScroll="mortgage-form" position="absolute" inset=0 display="flex" flex-direction="column"
+              header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
+                text "Mortgage" role="heading" aria-level=1 font-size="min(-exact-title1, 40px)" font-weight=700 flex-grow=1 flex-basis="7rem" min-width=0
+              list id="mortgage-form" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                section
+                  row
+                    text "Home price"
+                    input value=priceText input=editPrice inputmode="decimal" aria-label="Home price" text-align="end" flex=1 min-width=0 testId="price"
+                  row
+                    text "Down payment"
+                    input value=downText input=editDown inputmode="decimal" aria-label="Down payment" text-align="end" flex=1 min-width=0 testId="down"
+                    text `${downPercent.toFixed(1)}%` color="-exact-secondary-label" font-variant-numeric="tabular-nums" testId="down-percent"
+                  row
+                    text "Interest rate"
+                    input value=mortgageRateText input=editMortgageRate inputmode="decimal" aria-label="Interest rate, percent" text-align="end" flex=1 min-width=0 testId="mortgage-rate"
+                    text "%" color="-exact-secondary-label"
+                  row
+                    text "Amortization"
+                    input value=amortizationText input=editAmortization inputmode="numeric" aria-label="Amortization, years" text-align="end" flex=1 min-width=0 testId="amortization"
+                    text "years" color="-exact-secondary-label"
+                  row
+                    text "Term"
+                    input value=termText input=editTerm inputmode="numeric" aria-label="Term, years" text-align="end" flex=1 min-width=0 testId="term"
+                    text "years" color="-exact-secondary-label"
+                  row
+                    text "Payments"
+                    select value=paymentFrequency change=setPaymentFrequency aria-label="Payment frequency" testId="payment-frequency"
+                      option "Monthly" value="monthly"
+                      option "Semi-monthly" value="semi-monthly"
+                      option "Bi-weekly" value="bi-weekly"
+                      option "Accelerated bi-weekly" value="accelerated-bi-weekly"
+                      option "Weekly" value="weekly"
+                      option "Accelerated weekly" value="accelerated-weekly"
+                  row
+                    text "Compounding"
+                    select value=compounding change=setCompounding aria-label="Compounding" testId="compounding"
+                      option "Semi-annual (Canada)" value="semi-annual"
+                      option "Monthly (US)" value="monthly"
+                  footer
+                    text "Accelerated payments are the monthly payment split in two or four, paid every two weeks or every week: a little more a year, and the mortgage ends sooner."
+                section
+                  header
+                    text "Payment"
+                  row
+                    text `Each ${frequencyLabel}`
+                    text money(mortgage.payment, true) font-weight=600 font-variant-numeric="tabular-nums" testId="payment"
+                  row
+                    text "Loan"
+                    text whole(mortgage.loan) font-variant-numeric="tabular-nums" testId="loan"
+                  row
+                    text "Total interest"
+                    text whole(mortgage.totalInterest) font-variant-numeric="tabular-nums" testId="total-interest"
+                  row
+                    text "Total paid"
+                    text whole(mortgage.totalPaid) font-variant-numeric="tabular-nums" testId="total-paid"
+                  row
+                    text "Paid off in"
+                    text lasts(mortgage.payoffMonths) font-variant-numeric="tabular-nums" testId="payoff"
+                section
+                  header
+                    text `After the ${termText}-year term`
+                  row
+                    text "Balance left"
+                    text whole(mortgage.termBalance) font-weight=600 font-variant-numeric="tabular-nums" testId="term-balance"
+                  row
+                    text "Principal paid"
+                    text whole(mortgage.termPrincipal) font-variant-numeric="tabular-nums" testId="term-principal"
+                  row
+                    text "Interest paid"
+                    text whole(mortgage.termInterest) font-variant-numeric="tabular-nums" testId="term-interest"
+                section
+                  button press=openMortgageChart testId="open-mortgage-chart"
+                    image "symbol:chart"
+                    text "Show chart"
+                  button press=openMortgageTable testId="open-mortgage-table"
+                    image "symbol:list"
+                    text "Balance by year"
+          if e.name == "mchart"
+            column navigationKey=`${e.id}` navigationScroll="mchart-scroll" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Chart" role="heading" aria-level=2
+              scroll id="mchart-scroll" flex=1 min-height=0
+                column padding=16 gap=12
+                  text `${whole(mortgage.loan)} paid off in ${lasts(mortgage.payoffMonths)}` font="-exact-headline" testId="mchart-title"
+                  svg width="100%" viewBox="0 0 320 180" aria-label="Balance and interest paid by year" testId="mchart"
+                    line x1=10 y1=160 x2=310 y2=160 stroke="-exact-separator" stroke-width=1
+                    line x1=10 y1=10 x2=10 y2=160 stroke="-exact-separator" stroke-width=1
+                    polyline points=mortgage.interestPoints fill="none" stroke="-exact-secondary-label" stroke-width=2 stroke-linejoin="round" testId="interest-line"
+                    polyline points=mortgage.balancePoints fill="none" stroke="AccentColor" stroke-width=3 stroke-linejoin="round" stroke-linecap="round" testId="balance-line"
+                  row justify-content="space-between"
+                    text "Year 0" font="-exact-footnote" color="-exact-secondary-label"
+                    text `Year ${mortgage.years.length - 1}` font="-exact-footnote" color="-exact-secondary-label"
+                  row gap=16 flex-wrap="wrap"
+                    row align-items="center" gap=6
+                      box width=14 height=3 background-color="AccentColor"
+                      text "Balance" font="-exact-footnote"
+                    row align-items="center" gap=6
+                      box width=14 height=2 background-color="-exact-secondary-label"
+                      text "Interest paid so far" font="-exact-footnote"
+          if e.name == "mtable"
+            column navigationKey=`${e.id}` navigationScroll="mtable-list" position="absolute" inset=0 display="flex" flex-direction="column"
+              header padding="8px 16px"
+                text "Balance by year" role="heading" aria-level=2
+              list id="mtable-list" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+                section
+                  for y in mortgage.years key=y.year
+                    row align-items="center" gap=12 testId=`myear-${y.year}`
+                      column flex=1 min-width=0
+                        text `Year ${y.year}` font-weight=600
+                        text `Principal ${whole(y.principalPaid)} · Interest ${whole(y.interestPaid)}` font="-exact-footnote" color="-exact-secondary-label"
+                      text whole(y.balance) font-variant-numeric="tabular-nums" font-weight=600
           if e.name == "chart"
             column navigationKey=`${e.id}` navigationScroll="chart-scroll" position="absolute" inset=0 display="flex" flex-direction="column"
               header padding="8px 16px"
@@ -661,11 +828,14 @@ component Curzi
       // The tab bar: Convert and Growth.
       row role="tablist"
         button role="tab" aria-controls="panel-fx" aria-selected=(nav.tab == "fx") press=pickTab("fx") testId="tab-fx" flex=1
-          image "symbol:repeat" font-size="min(-exact-subheadline, 31px)"
-          text "Currency" font-size="min(-exact-subheadline, 31px)"
+          image "symbol:repeat" font-size="min(-exact-footnote, 24px)"
+          text "Currency" font-size="min(-exact-footnote, 24px)"
         button role="tab" aria-controls="panel-growth" aria-selected=(nav.tab == "growth") press=pickTab("growth") testId="tab-growth" flex=1
-          image "symbol:chart" font-size="min(-exact-subheadline, 31px)"
-          text "Growth" font-size="min(-exact-subheadline, 31px)"
+          image "symbol:chart" font-size="min(-exact-footnote, 24px)"
+          text "Growth" font-size="min(-exact-footnote, 24px)"
+        button role="tab" aria-controls="panel-mortgage" aria-selected=(nav.tab == "mortgage") press=pickTab("mortgage") testId="tab-mortgage" flex=1
+          image "symbol:home" font-size="min(-exact-footnote, 24px)"
+          text "Mortgage" font-size="min(-exact-footnote, 24px)"
       // One long-press menu for every currency row, acting on `aimed` (iOS: a UIMenu over the row).
       column id="row-menu" popover="auto" role="menu"
         button press=togglePin popovertarget="row-menu" popovertargetaction="hide" testId="menu-pin"

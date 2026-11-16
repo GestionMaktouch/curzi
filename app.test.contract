@@ -318,3 +318,40 @@ test "scenarios are added with a numbered name, compared by mode, loaded back, a
   reload
   tap "tab-growth"
   expect state scenarios.length == 1
+
+test "the Mortgage tab amortizes a loan, Canadian and US style, and shows the term"
+  tap "tab-mortgage"
+  type "price" "100000"
+  type "down" "0"
+  type "mortgage-rate" "6"
+  type "amortization" "25"
+  type "term" "5"
+  type "payment-frequency" "monthly"
+  type "compounding" "semi-annual"
+  clock data
+  expect text "payment" == "639.81"
+  expect text "down-percent" == "0.0%"
+  expect state mortgage.periods == 300
+  type "compounding" "monthly"
+  type "mortgage-rate" "12"
+  type "amortization" "1"
+  clock data
+  expect text "payment" == "8,884.88"
+  expect text "total-interest" == "6,619"
+  expect text "payoff" == "1 year"
+  type "amortization" "25"
+  type "payment-frequency" "accelerated-bi-weekly"
+  clock data
+  expect state mortgage.payment == 526.61
+  expect state mortgage.years.5 .year == 5
+  tap "open-mortgage-chart"
+  clock settle
+  expect tree has "balance-line"
+  back
+  clock settle
+  tap "open-mortgage-table"
+  clock settle
+  expect tree has "myear-1"
+  reload
+  tap "tab-mortgage"
+  expect state paymentFrequency == "accelerated-bi-weekly"

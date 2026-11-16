@@ -174,7 +174,63 @@ async function writeScenarios(storage: Storage, all: Saved[]): Promise<{ ok: boo
   return { ok: true, error: '' };
 }
 
+// A mortgage, amortized period by period. The periodic rate follows the compounding: Canada's
+// mortgages compound semi-annually whatever the payment frequency, US ones monthly. Accelerated
+// bi-weekly and weekly payments are the monthly payment split in two or four, so they pay a little
+// more a year and end early; the schedule runs until the balance is gone. Years are capped at 50.
+const PAYMENTS: Record<string, { perYear: number; accelerated: boolean }> = {
+  monthly: { perYear: 12, accelerated: false }, 'semi-monthly': { perYear: 24, accelerated: false },
+  'bi-weekly': { perYear: 26, accelerated: false }, 'accelerated-bi-weekly': { perYear: 26, accelerated: true },
+  weekly: { perYear: 52, accelerated: false }, 'accelerated-weekly': { perYear: 52, accelerated: true },
+};
+export function amortize(price: number, down: number, ratePercent: number, years: number, frequency: string, compounding: string, termYears: number): Result<'amortize'> {
+  const cents = (x: number) => Math.round(x * 100) / 100;
+  const loan = Math.max(0, price - down);
+  const { perYear, accelerated } = PAYMENTS[frequency] ?? PAYMENTS.monthly;
+  const n = Math.max(1, Math.min(50, Math.floor(years))) * perYear;
+  const m = compounding === 'monthly' ? 12 : 2;
+  const annual = Math.max(0, ratePercent) / 100;
+  // The rate per payment period, equivalent to the nominal annual rate compounded m times a year.
+  const r = Math.pow(1 + annual / m, m / perYear) - 1;
+  const level = (rate: number, periods: number) => (rate === 0 ? loan / periods : (loan * rate) / (1 - Math.pow(1 + rate, -periods)));
+  // Accelerated: the monthly payment (at the monthly periodic rate) split in two (bi-weekly) or four (weekly).
+  const monthlyRate = Math.pow(1 + annual / m, m / 12) - 1;
+  const monthlyPayment = level(monthlyRate, Math.max(1, Math.min(50, Math.floor(years))) * 12);
+  const payment = accelerated ? monthlyPayment / (perYear === 26 ? 2 : 4) : level(r, n);
+  let balance = loan, paidInterest = 0, paidPrincipal = 0, periods = 0;
+  const rows: { year: number; balance: number; principalPaid: number; interestPaid: number }[] = [{ year: 0, balance: cents(loan), principalPaid: 0, interestPaid: 0 }];
+  const term = Math.max(0, Math.floor(termYears));
+  let termBalance = loan, termPrincipal = 0, termInterest = 0;
+  for (let y = 1; y <= 50 && balance > 0.005; y++) {
+    let yearPrincipal = 0, yearInterest = 0;
+    for (let p = 0; p < perYear && balance > 0.005; p++) {
+      const interest = balance * r;
+      const principal = Math.min(balance, payment - interest);
+      balance -= principal;
+      yearInterest += interest; yearPrincipal += principal; periods += 1;
+    }
+    paidInterest += yearInterest; paidPrincipal += yearPrincipal;
+    rows.push({ year: y, balance: cents(Math.max(0, balance)), principalPaid: cents(yearPrincipal), interestPaid: cents(yearInterest) });
+    if (y === term) { termBalance = balance; termPrincipal = paidPrincipal; termInterest = paidInterest; }
+  }
+  if (term === 0) { termBalance = loan; termPrincipal = 0; termInterest = 0; }
+  if (term > rows.length - 1) { termBalance = 0; termPrincipal = paidPrincipal; termInterest = paidInterest; }
+  const peak = Math.max(loan, paidInterest, 1);
+  const span = rows.length - 1;
+  const x = (i: number) => 10 + (span === 0 ? 0 : (i / span) * 300);
+  const yOf = (v: number) => 160 - (v / peak) * 150;
+  let cumulative = 0;
+  const interestPoints = rows.map((row, i) => { cumulative += row.interestPaid; return `${x(i).toFixed(1)},${yOf(cumulative).toFixed(1)}`; }).join(' ');
+  const balancePoints = rows.map((row, i) => `${x(i).toFixed(1)},${yOf(row.balance).toFixed(1)}`).join(' ');
+  return {
+    loan: cents(loan), payment: cents(payment), periods, totalPaid: cents(paidPrincipal + paidInterest), totalInterest: cents(paidInterest),
+    payoffMonths: Math.round((periods * 12) / perYear), termBalance: cents(Math.max(0, termBalance)), termPrincipal: cents(termPrincipal), termInterest: cents(termInterest),
+    years: rows, balancePoints, interestPoints, peak: cents(peak),
+  };
+}
+
 const sources: Sources = {
+  amortize: async ([price, down, rate, years, frequency, compounding, term]): Promise<Result<'amortize'>> => amortize(price, down, rate, years, frequency, compounding, term),
   loadScenarios: async (_args, _store, storage): Promise<Result<'loadScenarios'>> =>
     (await readScenarios(storage)).map((x) => {
       const g = projectGrowth(x.mode, x.start, x.rate, x.years, x.amount, x.frequency, x.inflation);
