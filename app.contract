@@ -358,8 +358,8 @@ component Curzi
           if e.name == "fx"
             column navigationKey=`${e.id}` navigationScroll="rates" position="absolute" inset=0 display="flex" flex-direction="column"
               // Drawn as written on every host: the name and the cog on one line, under the status bar.
-              header appearance="none" display="flex" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
-                text "Curzi" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex=1
+              header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
+                text "Currency converter" role="heading" aria-level=1 font-size="min(-exact-title1, 40px)" font-weight=700 flex-grow=1 flex-basis="8rem" min-width=0
                 button press=openSettings aria-label="Settings" testId="open-settings"
                   image "symbol:settings"
               // A plain list of cards (a grouped list cannot be virtualized, and a drag to reorder needs one).
@@ -466,11 +466,11 @@ component Curzi
                     text "About"
                   row
                     text "Curzi"
-                    text "The old XE feel." color="-exact-secondary-label"
+                    text "Convert, grow, withdraw." color="-exact-secondary-label"
           if e.name == "growth"
             column navigationKey=`${e.id}` navigationScroll="growth-form" position="absolute" inset=0 display="flex" flex-direction="column"
               header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"
-                text "Growth" role="heading" aria-level=1 font="-exact-title1" font-weight=700 flex-grow=1 flex-basis="7rem"
+                text "Growth" role="heading" aria-level=1 font-size="min(-exact-title1, 40px)" font-weight=700 flex-grow=1 flex-basis="7rem" min-width=0
                 button press=openCompare aria-label="Compare scenarios" testId="open-compare"
                   image "symbol:layers"
                   text (scenarios.length > 0 ? `Compare (${scenarios.length})` : "Compare")
@@ -662,7 +662,7 @@ component Curzi
       row role="tablist"
         button role="tab" aria-controls="panel-fx" aria-selected=(nav.tab == "fx") press=pickTab("fx") testId="tab-fx" flex=1
           image "symbol:repeat" font-size="min(-exact-subheadline, 31px)"
-          text "Convert" font-size="min(-exact-subheadline, 31px)"
+          text "Currency" font-size="min(-exact-subheadline, 31px)"
         button role="tab" aria-controls="panel-growth" aria-selected=(nav.tab == "growth") press=pickTab("growth") testId="tab-growth" flex=1
           image "symbol:chart" font-size="min(-exact-subheadline, 31px)"
           text "Growth" font-size="min(-exact-subheadline, 31px)"
