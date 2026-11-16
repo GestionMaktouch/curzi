@@ -796,7 +796,7 @@ component Curzi
                     polyline points=mortgage.balancePoints fill="none" stroke="AccentColor" stroke-width=3 stroke-linejoin="round" stroke-linecap="round" testId="balance-line"
                   row justify-content="space-between"
                     text "Year 0" font="-exact-footnote" color="-exact-secondary-label"
-                    text `Year ${mortgage.years.length - 1}` font="-exact-footnote" color="-exact-secondary-label"
+                    text `Year ${ceil(mortgage.basePayoffMonths / 12)}` font="-exact-footnote" color="-exact-secondary-label"
                   row gap=16 flex-wrap="wrap"
                     row align-items="center" gap=6
                       box width=14 height=3 background-color="AccentColor"
