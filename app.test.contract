@@ -355,3 +355,31 @@ test "the Mortgage tab amortizes a loan, Canadian and US style, and shows the te
   reload
   tap "tab-mortgage"
   expect state paymentFrequency == "accelerated-bi-weekly"
+
+test "overpayments shorten the mortgage and save interest"
+  tap "tab-mortgage"
+  type "price" "100000"
+  type "down" "0"
+  type "mortgage-rate" "12"
+  type "amortization" "25"
+  type "term" "5"
+  type "payment-frequency" "monthly"
+  type "compounding" "monthly"
+  type "extra" "0"
+  type "lump" "0"
+  clock data
+  expect tree missing "interest-saved"
+  expect text "payoff" == "25 years"
+  type "extra" "200"
+  clock data
+  expect tree has "interest-saved"
+  expect state mortgage.payoffMonths == 161
+  expect state mortgage.monthsSaved == 139
+  expect state mortgage.interestSaved == 114549.99
+  type "extra" "0"
+  type "lump" "10000"
+  clock data
+  expect state mortgage.payoffMonths == 84
+  tap "open-mortgage-chart"
+  clock settle
+  expect tree has "base-balance-line"

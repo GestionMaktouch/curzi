@@ -15,7 +15,9 @@ saved and compared.
 A third tab, **Mortgage**: home price, down payment, rate, amortization, term, payment frequency
 (monthly to accelerated weekly) and compounding (semi-annual for Canada, monthly for the US). It
 shows the payment, total interest and total paid, when it's paid off, the balance and interest at
-the end of the term, with a chart and a balance-by-year table. Built on
+the end of the term, with a chart and a balance-by-year table. Overpayments (an extra amount
+per payment, a lump sum each year) show the time and interest saved, with the original balance
+dashed on the chart. Built on
 [Exact](https://github.com/expo/exact), Expo's pre-alpha agent-native framework, so one
 `app.contract` runs on the web, iOS and Android.
 
