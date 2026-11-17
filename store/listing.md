@@ -5,7 +5,7 @@
 **Category:** Finance (secondary: Utilities)
 **Age rating:** 4+
 **Price:** Free, with one in-app purchase (Support Curzi, $2.99, non-consumable)
-**Privacy policy URL:** (PRIVACY.md, hosted)
+**Privacy policy URL:** https://maktouch.com/curzi/privacy
 **Support URL:** https://github.com/GestionMaktouch/curzi
 
 **Promotional text (170):**
