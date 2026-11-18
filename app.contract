@@ -1,7 +1,6 @@
 // Curzi: the old XE feel. A list of the currencies you use; tap any amount, type, and every
-// other row follows. Free; a one-time purchase supports it. Colours, fonts and controls are left unsaid, so each platform draws its own.
+// other row follows. Free, no account, no ads. Colours, fonts and controls are left unsaid, so each platform draws its own.
 use EmptyState, RowText from "exact:content"
-use getDetails, listPurchases, unfinishedPurchases, purchase, restorePurchases, purchasesStatus, ItemDetails, PurchaseDetails, PurchasesStatus from "@exact/purchases"
 
 routes nav
   tab fx "/"
@@ -36,9 +35,6 @@ shape Rates
 shape Time
   epochAtZero: number
   utcOffset: number
-
-shape Delivery
-  finished: number
 
 // A year of the growth projection, and the whole of it (app.ts compounds it).
 shape Year
@@ -182,7 +178,6 @@ component Curzi
   // The row a long press opened the menu on.
   state aimed = ""
   state query = ""
-  state thanks = ""
 
   resource time = exactTime() as shape Time
   state now = 0
@@ -205,13 +200,6 @@ component Curzi
   resource rows = loadRows(codes) with rates.date as shape Row[] else empty()
   resource all = allCurrencies() as shape Currency[] else empty()
 
-  resource store = purchasesStatus() as shape PurchasesStatus else empty()
-  resource owned = listPurchases() as shape PurchaseDetails[] else empty()
-  resource queue = unfinishedPurchases() as shape PurchaseDetails[] else empty()
-  resource plans = getDetails(itemIds=["support"]) as shape ItemDetails[] else empty()
-  mutation bought as shape PurchaseDetails then thanked
-  mutation restored as shape PurchaseDetails[]
-  mutation delivered as shape Delivery
 
   derive amount = max(0, evaluated.value)
   // The keypad's last key: "=" while there is something to work out, else Done.
@@ -221,18 +209,11 @@ component Curzi
   derive items = rows.concat([Row(code="+", name="Add another currency", flag="", rate=0)])
   derive pinnedRate = rateOf(rows, pinned)
   derive candidates = all.filter(c => not codes.includes(c.code) and matches(c, query))
-  // What the person holds, never the store's queue.
-  derive supporter = owned.filter(p => p.itemId == "support" and p.purchaseState == "purchased").length > 0
-  derive due = queue.filter(p => p.purchaseState == "purchased").map(p => p.purchaseToken).join(",")
-  derive price = match first(plans) { case some(p) => p.displayPrice, case none => "$2.99" }
-  derive purchaseError = match failure(bought) { case some(f) => f.code == "AbortError" ? "" : "The purchase didn’t go through. Try again.", case none => "" }
   derive age = ago(max(0, time.epochAtZero + now - rates.updatedAt))
   derive ratesNote = (failed(rates) and rates.date == "" ? "Couldn’t load rates. Pull down to try again."
     : rates.date == "" ? "Loading rates…"
     : rates.stale ? `Offline. Rates last updated ${age}.` : `Rates last updated ${age}. Mid-market rates by exchangerate-api.com.`)
 
-  task delivering when due != "" key=due
-    after(1, deliver)
   // The note's minutes turn over on their own.
   task ticking mount
     every(60000, tick)
@@ -402,19 +383,6 @@ component Curzi
         codes = i < 0 ? without.concat([item]) : without.slice(0, i).concat([item]).concat(without.slice(i))
       case none
         codes = without.concat([item])
-  action buy
-    thanks = ""
-    send bought = purchase(itemId="support")
-  action restore
-    send restored = restorePurchases()
-  action thanked
-    match bought
-      case some(p)
-        thanks = p.purchaseState == "pending" ? "Waiting for approval." : "Thank you for supporting Curzi!"
-      case none
-        thanks = ""
-  action deliver
-    send delivered = deliverPurchases()
 
   view
     main testId="root" navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow
@@ -499,19 +467,6 @@ component Curzi
               list id="settings" appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
                 section
                   header
-                    text "Support"
-                  if supporter
-                    row
-                      text "You support Curzi. Thank you!" testId="supporter"
-                  else
-                    button press=buy disabled=(pending(bought) or not store.available) testId="support"
-                      text (pending(bought) ? "Buying…" : `Support Curzi · ${price}`)
-                  button press=restore disabled=pending(restored) testId="restore"
-                    text "Restore Purchases"
-                  footer
-                    text (thanks != "" ? thanks : purchaseError != "" ? purchaseError : not store.available ? "Purchases are made in the iOS or Android app." : "Curzi is free. One payment, no subscription, says thanks and keeps it that way.") testId="support-note"
-                section
-                  header
                     text "Display"
                   row
                     text "Show decimals"
@@ -535,6 +490,8 @@ component Curzi
                   row
                     text "Curzi"
                     text "Convert, grow, withdraw." color="-exact-secondary-label"
+                  footer
+                    text "Free, with no account and no ads. Curzi keeps nothing but what you type, on your device."
           if e.name == "growth"
             column navigationKey=`${e.id}` navigationScroll="growth-form" position="absolute" inset=0 display="flex" flex-direction="column"
               header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="calc(env(safe-area-inset-top) + 8px) 16px 8px"

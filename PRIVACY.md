@@ -1,6 +1,6 @@
 # Curzi privacy policy
 
-Last updated: 16 November 2026
+Last updated: 17 November 2026
 
 Curzi is a currency converter with growth, withdrawal and mortgage calculators, made by Makara
 Sok (GestionMaktouch).
@@ -14,9 +14,6 @@ the scenarios you save are kept on your device only. Deleting the app deletes th
 **Network use.** To convert currencies, Curzi downloads exchange rates from the Exchange Rate API
 (exchangerate-api.com). That request carries no personal data and no identifier. The last
 rates are cached on your device so the app works offline.
-
-**Purchases.** The optional "Support Curzi" purchase is handled by Apple's App Store or Google
-Play. Curzi never sees your payment details; it only learns whether the purchase was made.
 
 **Children.** Curzi is not directed at children and collects no data from anyone.
 

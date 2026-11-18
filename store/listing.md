@@ -4,7 +4,7 @@
 **Subtitle (30):** Currency, growth, mortgage
 **Category:** Finance (secondary: Utilities)
 **Age rating:** 4+
-**Price:** Free, with one in-app purchase (Support Curzi, $2.99, non-consumable)
+**Price:** Free, no in-app purchases
 **Privacy policy URL:** https://maktouch.com/curzi/privacy
 **Support URL:** https://github.com/GestionMaktouch/curzi
 
@@ -20,7 +20,7 @@ Growth works out what regular saving comes to: starting balance, return, additio
 
 Mortgage shows the payment for any price, down payment, rate and amortization, with semi-annual (Canada) or monthly (US) compounding, accelerated bi-weekly and weekly payments, what you owe at the end of your term, and what overpayments save you in time and interest.
 
-No account, no ads, no tracking. Curzi is free; a one-time Support purchase says thanks and keeps it that way.
+No account, no ads, no tracking. Curzi is free.
 
 **Keywords (100):**
 currency,converter,exchange rate,forex,money,compound,interest,mortgage,calculator,savings,retire
@@ -29,4 +29,4 @@ currency,converter,exchange rate,forex,money,compound,interest,mortgage,calculat
 First release.
 
 **Review notes:**
-Amounts use an in-app calculator keypad instead of the system keyboard; tap any amount to open it. Exchange rates come from exchangerate-api.com and are for information only. The Support Curzi purchase is a one-time non-consumable with no gated features.
+Amounts use an in-app calculator keypad instead of the system keyboard; tap any amount to open it. Exchange rates come from exchangerate-api.com and are for information only.

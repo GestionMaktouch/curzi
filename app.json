@@ -38,9 +38,6 @@
       "macos": "0"
     }
   },
-  "purchases": {
-    "catalog": "store/catalog.json"
-  },
   "verify": {
     "accept": [
       {

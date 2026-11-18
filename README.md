@@ -2,7 +2,7 @@
 
 The old XE feel: a list of the currencies you use, tap any amount, type on the built-in
 calculator keypad (`5×100÷7` works), and every other row updates at once. Drag the grip to reorder; long-press a row to pin it (every other row then
-shows "1 PIN → rate") or delete it. Free; a one-time $2.99 "Support Curzi" purchase says thanks.
+shows "1 PIN → rate") or delete it. Free, with no account and no ads.
 
 A second tab, **Growth**, is a compound-growth calculator: starting balance, annual return,
 duration, a periodic addition compounded monthly, quarterly or yearly, and an inflation rate.
@@ -26,10 +26,9 @@ dashed on the chart. Built on
 | File | What it is |
 |---|---|
 | `app.contract` | The view: the Convert tab (card list with grip, pin and menu; the keypad; the Add Currency sheet; Settings) the Growth tab (form, chart, table, scenarios) and the Mortgage tab |
-| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, the growth projection, the mortgage amortization, purchase delivery |
+| `app.ts` | The data module: the rate feed, its offline cache, the expression evaluator, the growth projection, the mortgage amortization |
 | `currencies.ts` | ISO 4217 codes with names and flags |
 | `app.test.contract` | The tests (`bun exact.mjs test web`, `test ios`) |
-| `store/catalog.json` | The store catalogue: the `support` non-consumable |
 | `assets/` | The icon (`icon-1024.png`), launch mark (`launch.png`) and the logo's source (`logo.svg`) |
 | `android/res/` | The Android adaptive launcher icon (`mipmap-*`), rendered from the same SVG |
 | `app.json` | The manifest: name, bundle id, platforms, the catalogue |
@@ -101,5 +100,4 @@ installed: `git -C ../exact checkout main && git pull`, then `bun exact.mjs upda
 
 - **Android.** Builds and passes its tests on the emulator, but Exact's Android host is early
   and has no Play Store packaging (signing, AAB) yet.
-- **Store listing.** Icons, launch image, App Store Connect / Play Console products matching
   `store/catalog.json` (`support`, $2.99 tier).

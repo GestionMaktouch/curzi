@@ -144,18 +144,6 @@ test "decimals can be switched off in Settings, rounding every amount"
   reload
   expect state decimals == false
 
-test "on the web there is no store, and Settings says so" on web
-  tap "open-settings"
-  clock settle
-  expect disabled "support"
-  expect text "support-note" == "Purchases are made in the iOS or Android app."
-
-test "on a phone the store is there and Support Curzi can be tapped" on ios, android
-  tap "open-settings"
-  clock settle
-  expect enabled "support"
-  expect tree has "restore"
-
 test "offline, the rows still show, the note says so, and Try Again recovers"
   epoch "2026-11-10T12:00:00Z"
   fail fetch "https://open.er-api.com"

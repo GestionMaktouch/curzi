@@ -1,5 +1,4 @@
 import type { Answer, Result, Sources, Storage } from './app.contract.d.ts';
-import { acknowledge, unfinishedPurchases } from '@exact/purchases';
 import { CURRENCIES } from './currencies.ts';
 
 // Mid-market rates against USD from the Exchange Rate API's free feed (daily, no key).
@@ -275,20 +274,6 @@ const sources: Sources = {
       const c = byCode.get(code) ?? { code, name: code, flag: '🏳️' };
       return { code: c.code, name: c.name, flag: c.flag, rate: it?.rates[code] ?? 0 };
     });
-  },
-  // The one place a purchase is finished, however it arrived; what the person holds is `listPurchases`'.
-  deliverPurchases: async (): Promise<Result<'deliverPurchases'>> => {
-    let finished = 0;
-    for (const p of await unfinishedPurchases()) {
-      if (p.purchaseState !== 'purchased') continue;
-      try {
-        await acknowledge({ purchaseToken: p.purchaseToken });
-        finished += 1;
-      } catch {
-        // Not finished: the store keeps it in the queue and the next answer tries again.
-      }
-    }
-    return { finished };
   },
 };
 export const answer: Answer = (source, args, store, storage, native) => sources[source](args, store, storage, native);

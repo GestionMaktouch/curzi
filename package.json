@@ -4,8 +4,5 @@
   "scripts": {
     "build": "bun exact.mjs web-build --out dist",
     "start": "bun exact.mjs serve dist"
-  },
-  "dependencies": {
-    "@exact/purchases": "file:/Users/maktouch/Developer/exact/packages/purchases"
   }
 }
